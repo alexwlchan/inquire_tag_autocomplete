@@ -1,5 +1,5 @@
 [package]
-name = "inquire_tab_autocomplete"
+name = "inquire_tag_autocomplete"
 version = "1.0.0"
 edition = "2021"
 
