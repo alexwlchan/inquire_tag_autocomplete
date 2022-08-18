@@ -4,4 +4,4 @@ version = "1.0.0"
 edition = "2021"
 
 [dependencies]
-inquire = "0.3.0-alpha.2"
+inquire = { git = "https://github.com/mikaelmello/inquire", branch = "mikaelmello/revamp-completion" }
