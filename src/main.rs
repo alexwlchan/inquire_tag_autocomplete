@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use inquire::{
     autocompletion::{AutoComplete, Completion},
@@ -17,8 +17,7 @@ fn get_tags<'a>() -> Vec<&'a str> {
 pub struct FilePathCompleter<'a> {
     tags: Vec<&'a str>,
     suggestions: Vec<&'a str>,
-    input: String,
-    prefix_len: usize,
+    prefix: String,
 }
 
 impl<'a> FilePathCompleter<'a> {
@@ -26,14 +25,19 @@ impl<'a> FilePathCompleter<'a> {
         Self {
             tags: tags.clone(),
             suggestions: tags,
-            input: "".to_owned(),
-            prefix_len: 0,
+            prefix: "".to_owned(),
         }
     }
 }
 
 impl<'a> AutoComplete for FilePathCompleter<'a> {
     fn update_input(&mut self, input: &str) -> Result<(), CustomUserError> {
+        if input.is_empty() {
+            self.prefix.clear();
+            self.suggestions = self.tags.to_vec();
+            return Ok(());
+        }
+
         // What tags have already been used?  Tags can only be selected
         // once, so we don't want to suggest a tag already in the input.
         let input_tags = input.split_whitespace();
@@ -42,10 +46,21 @@ impl<'a> AutoComplete for FilePathCompleter<'a> {
 
         // What's the latest tag the user is typing?  i.e. what are we trying
         // to autocomplete on this tag.
-        let this_tag = input.split_whitespace().last();
+        let last_char_is_space = input.chars().last().unwrap().is_whitespace();
+        let this_tag = if last_char_is_space {
+            None
+        } else {
+            input.split_whitespace().last()
+        };
 
-        self.prefix_len = input.len().saturating_sub(this_tag.map_or(0, |s| s.len()));
-        self.input = input.to_owned();
+        self.prefix = if last_char_is_space {
+            input.to_string()
+        } else if let Some(tag) = this_tag {
+            input[..(input.len() - tag.len())].to_string()
+        } else {
+            unreachable!();
+            // input.to_string()
+        };
 
         self.suggestions = self
             .tags
@@ -76,22 +91,23 @@ impl<'a> AutoComplete for FilePathCompleter<'a> {
         selected_suggestion: Option<(usize, &str)>,
     ) -> Result<inquire::autocompletion::Completion, CustomUserError> {
         let completion = match selected_suggestion {
-            None => {
-                if let Some(suggestion) = self.suggestions.first() {
-                    Completion::Replace(format!(
-                        "{} {} ",
-                        &self.input[..self.prefix_len],
-                        suggestion
-                    ))
-                } else {
-                    Completion::None
+            None => self.suggestions.first().copied(),
+            Some(suggestion) => Some(suggestion.1),
+        };
+
+        let completion = match completion {
+            Some(c) => match self.prefix.is_empty() {
+                true => Completion::Replace(format!("{} ", c)),
+                false => {
+                    let separator = if self.prefix.chars().last().unwrap().is_whitespace() {
+                        ""
+                    } else {
+                        " "
+                    };
+                    Completion::Replace(format!("{}{}{} ", self.prefix, separator, c))
                 }
-            }
-            Some(suggestion) => Completion::Replace(format!(
-                "{} {} ",
-                &self.input[..self.prefix_len],
-                suggestion.1
-            )),
+            },
+            None => Completion::None,
         };
 
         Ok(completion)
